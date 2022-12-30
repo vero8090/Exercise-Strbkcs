@@ -12,7 +12,7 @@ const { sequelize } = require('./../models');
 const { v4: uuidv4 } = require('uuid');
 
 //import hashpassword
-const {hashPassword} = require('./../lib/hashpassword') // hashpassword harus pake brace, karena dia module.export
+const {hashPassword, hashMatch } = require('./../lib/hashpassword') // hashpassword harus pake brace, karena dia module.export
 
 //import jwt
 const {jwt} = require('./../lib/jwt')
@@ -28,16 +28,27 @@ const category = db.category
 module.exports = {
     getProduct: async(req,res)=>{
         try {
-            let X = await product.findAll()
-            console.log(X)
-            res.status(201).send({
-                isError:false,
-                message:'get data success',
-                X
-            })
+            let getData = await product.findAll()
+            console.log('getData', getData)
+            if(getData.length > 0 ){
+                res.status(201).send({
+                    isError:false,
+                    message:'get data success',
+                    data : getData
+                })
+            }else{
+                res.status(400).send({
+                    isError:true,
+                    message:'data not found',
+                })
+            }
             
         } catch (error) {
             console.log(error)
+            res.status(500).send({
+                isError:true,
+                message:"Get Data Failed!",
+            })
         }
     },
     register: async (req, res) => {
@@ -141,8 +152,8 @@ module.exports = {
         }
     },
     login: async(req,res) =>{
-
-              // Step-1 Ambil value dari req.body
+        try {
+            // Step-1 Ambil value dari req.body
             let {username, password} = req.body
             //validasi
             if(!username || !password) return res.status(404).send({
@@ -150,6 +161,8 @@ module.exports = {
                 message: "Please fill data!",
                 data:null
             })
+
+            let hashedPassword = await hashMatch(password)
             // Step-2 Cari username dan password di database
             let x = await users.findOne({
                 where :{
@@ -157,7 +170,7 @@ module.exports = {
                     // kalo op.or dia nanti bisa sucess kalo ketemu username atau password bener
                     [Op.and]:[
                         {username: username},
-                        {password: password}
+                        {password: hashedPassword}
                     ]
                 }
             })
@@ -175,6 +188,15 @@ module.exports = {
                 message:"Login Success!",
                 data: {id:x.dataValues.id, username:x.dataValues.username}
             })
+
+        } catch (error) {
+            console.log(error)
+            res.status(500).send({
+                isError:true,
+                message:"Login Failed!",
+            })
+        }
+          
     },
     postPicture: async(req,res) =>{
         try {
@@ -200,31 +222,29 @@ module.exports = {
     },
     postProduct: async(req,res) =>{
         try {
-            let {malabi,category,category3} = req.body
-            console.log(malabi)
-            // console.log(malabi.length)
-        
-            // let yoo = []
-            for(i=0;i<malabi.length;i++){
-                if(i<10){
-                    product.create({id:i+1,name:malabi[i], category_id:category})
-                }else if(i>9){
-                    product.create({id:i+1,name:malabi[i], category_id:category3})
-                }
-                
-                // yoo.push(product[i])
+            let data = req.body
+            const allData = []
+            for (const item of data){
+                item.malabi.map(async (d)=>{
+                    if(item.category == 1){
+                     await product.create({name:d, category_id: 1})   
+                    }
+                    if(item.category == 3){
+                        await product.create({name:d, category_id: 3})   
+                    } 
+                })
             }
-            // await product.create({name:malabi, category_id:category})
-            // JANGAN LUPA TABEL NYA DI DEFINE DULU JADI db.product baru bisa di akses goblok!
-            // await users_address.create({receiver: username, address:"Kab. Bogor", phone_number:62, users_id:asd.dataValues.id}, {transaction: x})
-
             res.status(201).send({
                 isError:false,
                 message:"upload product success",
-                data:null,
+                data: allData
             })
         } catch (error) {
             console.log(error)
+            res.status(500).send({
+                isError:true,
+                message:"Create Product Failed!",
+            })
         }
     },
     postDetail: async(req,res) =>{
